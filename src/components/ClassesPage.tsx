@@ -1,6 +1,6 @@
 // src/pages/ClassesPage.tsx
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Box,
   Paper,
@@ -19,9 +19,9 @@ import {
   TableRow,
   TableCell,
   TableBody,
-  Chip,
   Stack,
   Avatar,
+  CircularProgress,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import {
@@ -32,80 +32,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-
-// --- TYPE DEFINITIONS ---
-interface ClassStudentDetail {
-  studentID: string;
-  studentName: string; // Assuming we can get the name
-  status: "Engaged" | "Passive" | "Distracted" | "Neutral";
-  emotion_summary: { [key: string]: number };
-  frames_attended: number;
-}
-
-interface ClassData {
-  classID: number;
-  className: string;
-  total_students: number;
-  present_students: number;
-  absent_students: number;
-  attendance_rate: number;
-  emotion_distribution: { [key: string]: number };
-  students_list: ClassStudentDetail[];
-}
-
-// --- MOCK DATA ---
-const classesList: ClassData[] = [
-  {
-    classID: 101,
-    className: "Algebra 101",
-    total_students: 25,
-    present_students: 25,
-    absent_students: 0,
-    attendance_rate: 100.0,
-    emotion_distribution: { happy: 500, neutral: 1200, confused: 150 },
-    students_list: [
-      {
-        studentID: "S001",
-        studentName: "Alex Johnson",
-        status: "Engaged",
-        emotion_summary: { happy: 30, neutral: 60 },
-        frames_attended: 90,
-      },
-      {
-        studentID: "S002",
-        studentName: "Maria Garcia",
-        status: "Neutral",
-        emotion_summary: { neutral: 85 },
-        frames_attended: 85,
-      },
-    ],
-  },
-  {
-    classID: 102,
-    className: "History 202",
-    total_students: 30,
-    present_students: 27,
-    absent_students: 3,
-    attendance_rate: 90.0,
-    emotion_distribution: { happy: 800, neutral: 1000, confused: 50 },
-    students_list: [
-      {
-        studentID: "S003",
-        studentName: "Chen Wei",
-        status: "Distracted",
-        emotion_summary: { confused: 40, neutral: 20 },
-        frames_attended: 60,
-      },
-      {
-        studentID: "S004",
-        studentName: "Emily Carter",
-        status: "Engaged",
-        emotion_summary: { happy: 70, neutral: 30 },
-        frames_attended: 100,
-      },
-    ],
-  },
-];
+// Import the service and types
+import { getClassDetailStatus } from "../api/services/classService";
+import type { ClassDetailStatusResponse, ClassDetail } from "../types/api";
 
 // --- HELPER COMPONENTS ---
 const StatCard = ({
@@ -137,46 +66,51 @@ const StatCard = ({
   </Card>
 );
 
-const EngagementStatusChip = ({
-  status,
-}: {
-  status: ClassStudentDetail["status"];
-}) => {
-  const color = {
-    Engaged: "success",
-    Passive: "warning",
-    Distracted: "error",
-    Neutral: "default",
-  }[status] as "success" | "warning" | "error" | "default";
-  return (
-    <Chip
-      label={status}
-      color={color}
-      size="small"
-    />
-  );
-};
-
 // --- MAIN CLASSES PAGE COMPONENT ---
 export const ClassesPage: React.FC = () => {
   const theme = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedClass, setSelectedClass] = useState<ClassData | null>(
-    classesList[0]
-  );
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [classesData, setClassesData] = useState<ClassDetailStatusResponse>({});
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredClasses = useMemo(() => {
-    return classesList.filter((c) =>
-      c.className.toLowerCase().includes(searchQuery.toLowerCase())
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const data = await getClassDetailStatus();
+        setClassesData(data);
+        if (Object.keys(data).length > 0) {
+          setSelectedClassId(Object.keys(data)[0]);
+        }
+        setError(null);
+      } catch (err) {
+        setError("Failed to fetch class details.");
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const classIds = useMemo(() => {
+    return Object.keys(classesData).filter((id) =>
+      id.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [searchQuery]);
+  }, [searchQuery, classesData]);
+
+  const selectedClassData: ClassDetail | null = selectedClassId
+    ? classesData[selectedClassId]
+    : null;
 
   const emotionChartData = useMemo(() => {
-    if (!selectedClass) return [];
-    return Object.entries(selectedClass.emotion_distribution).map(
+    if (!selectedClassData) return [];
+    return Object.entries(selectedClassData.emotionDistribution).map(
       ([name, value]) => ({ name, value })
     );
-  }, [selectedClass]);
+  }, [selectedClassData]);
 
   return (
     <Paper
@@ -210,24 +144,27 @@ export const ClassesPage: React.FC = () => {
             }}
           />
         </Box>
-        <List sx={{ flexGrow: 1, overflowY: "auto" }}>
-          {filteredClasses.map((c) => (
-            <ListItem
-              key={c.classID}
-              disablePadding
-            >
-              <ListItemButton
-                selected={selectedClass?.classID === c.classID}
-                onClick={() => setSelectedClass(c)}
+        {loading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <List sx={{ flexGrow: 1, overflowY: "auto" }}>
+            {classIds.map((id) => (
+              <ListItem
+                key={id}
+                disablePadding
               >
-                <ListItemText
-                  primary={c.className}
-                  secondary={`ID: ${c.classID}`}
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
+                <ListItemButton
+                  selected={selectedClassId === id}
+                  onClick={() => setSelectedClassId(id)}
+                >
+                  <ListItemText primary={`Class ${id}`} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        )}
       </Box>
 
       {/* RIGHT PANE: Class Details */}
@@ -239,7 +176,29 @@ export const ClassesPage: React.FC = () => {
           overflow: "hidden",
         }}
       >
-        {!selectedClass ? (
+        {loading ? (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+            }}
+          >
+            <CircularProgress />
+          </Box>
+        ) : error ? (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+            }}
+          >
+            <Typography color="error">{error}</Typography>
+          </Box>
+        ) : !selectedClassData ? (
           <Box
             sx={{
               display: "flex",
@@ -262,7 +221,7 @@ export const ClassesPage: React.FC = () => {
                 variant="h4"
                 fontWeight="bold"
               >
-                {selectedClass.className}
+                Class {selectedClassId}
               </Typography>
               <Typography
                 variant="subtitle1"
@@ -278,11 +237,11 @@ export const ClassesPage: React.FC = () => {
               >
                 <StatCard
                   title="Attendance Rate"
-                  value={`${selectedClass.attendance_rate}%`}
+                  value={`${selectedClassData.attendanceRate}%`}
                 />
                 <StatCard
                   title="Present Students"
-                  value={`${selectedClass.present_students} / ${selectedClass.total_students}`}
+                  value={selectedClassData.presentStudents}
                 />
               </Stack>
               <Typography
@@ -332,42 +291,32 @@ export const ClassesPage: React.FC = () => {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Student</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Emotions</TableCell>
+                      <TableCell>Student ID</TableCell>
+                      <TableCell>Frames Attended</TableCell>
+                      <TableCell>Emotion Summary</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {selectedClass.students_list.map((student) => (
-                      <TableRow key={student.studentID}>
-                        <TableCell>
-                          <Box sx={{ display: "flex", alignItems: "center" }}>
-                            <Avatar sx={{ mr: 1.5, width: 32, height: 32 }}>
-                              {student.studentName.charAt(0)}
-                            </Avatar>
-                            <Box>
-                              <Typography variant="body1">
-                                {student.studentName}
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                color="text.secondary"
-                              >
-                                {student.studentID}
-                              </Typography>
+                    {Object.entries(selectedClassData.studentBreakdown).map(
+                      ([studentId, details]) => (
+                        <TableRow key={studentId}>
+                          <TableCell>
+                            <Box sx={{ display: "flex", alignItems: "center" }}>
+                              <Avatar sx={{ mr: 1.5, width: 32, height: 32 }}>
+                                {studentId.charAt(0)}
+                              </Avatar>
+                              {studentId}
                             </Box>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <EngagementStatusChip status={student.status} />
-                        </TableCell>
-                        <TableCell>
-                          {Object.entries(student.emotion_summary)
-                            .map(([key, val]) => `${key}: ${val}`)
-                            .join(", ")}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>{details.framesAttended}</TableCell>
+                          <TableCell>
+                            {Object.entries(details.emotionSummary)
+                              .map(([key, val]) => `${key}: ${val}`)
+                              .join(", ")}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    )}
                   </TableBody>
                 </Table>
               </TableContainer>
