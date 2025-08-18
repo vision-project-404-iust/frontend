@@ -111,22 +111,24 @@ export const DashboardPage: React.FC = () => {
 
     const emotionKeys = new Set<string>();
     data.forEach((d) => {
-      if (d.emotionDistribution) {
-        Object.keys(d.emotionDistribution).forEach((key) =>
-          emotionKeys.add(key)
-        );
-      }
+      Object.keys(d).forEach((key) => {
+        if (key !== 'name' && key !== 'Attendance Rate') {
+          emotionKeys.add(key);
+        }
+      });
     });
 
     return { chartData: data, allEmotionKeys: Array.from(emotionKeys) };
   }, [combinedData]);
 
   const emotionColors: { [key: string]: string } = {
-    happy: theme.palette.success.main,
-    excited: theme.palette.success.light,
-    sad: theme.palette.error.main,
-    neutral: theme.palette.grey[500],
-    confused: theme.palette.warning.main,
+    happy: theme.palette.success.main,      // Green
+    sad: theme.palette.error.main,          // Red
+    angry: '#8B0000',                       // Dark Red (more distinct)
+    fear: '#FF8C00',                        // Dark Orange (more distinct)
+    disgust: '#FFA500',                     // Orange (more distinct)
+    surprise: theme.palette.info.main,      // Blue
+    neutral: theme.palette.grey[600],       // Darker Gray
   };
 
   return (

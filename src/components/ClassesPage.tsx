@@ -251,7 +251,7 @@ export const ClassesPage: React.FC = () => {
               >
                 Emotion Distribution
               </Typography>
-              <Box sx={{ height: 200 }}>
+              <Box sx={{ height: 300 }}>
                 <ResponsiveContainer
                   width="100%"
                   height="100%"

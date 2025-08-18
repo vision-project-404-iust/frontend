@@ -228,10 +228,7 @@ export const StudentsPage: React.FC = () => {
               >
                 <StatCard
                   title="Overall Attendance"
-                  value={`${Math.round(
-                    selectedStudentData.overallAttendance.overallAttendance *
-                      100
-                  )}%`}
+                  value={`${selectedStudentData.overallAttendance.overallAttendance}%`}
                 />
                 <StatCard
                   title="Classes Attended"
